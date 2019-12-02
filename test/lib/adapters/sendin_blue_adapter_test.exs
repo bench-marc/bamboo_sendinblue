@@ -36,7 +36,7 @@ defmodule Bamboo.SendinBlueAdapterTest do
       Plug.Adapters.Cowboy.shutdown __MODULE__
     end
 
-    post "/v2.0/email" do
+    post "/v3/smtp/email" do
       case Map.get(conn.params, "from") do
         "INVALID_EMAIL" -> conn |> send_resp(500, "Error!!") |> send_to_parent
         _ -> conn |> send_resp(200, "SENT") |> send_to_parent
@@ -76,7 +76,7 @@ defmodule Bamboo.SendinBlueAdapterTest do
     email |> SendinBlueAdapter.deliver(@config)
 
     assert_receive {:fake_sendinblue, %{params: params}}
-    assert params["replyto"] == "foo@bar.com"
+    assert params["replyto"]["email"] == "foo@bar.com"
   end
 
   test "deliver/2 sends the to the right url" do
@@ -84,7 +84,7 @@ defmodule Bamboo.SendinBlueAdapterTest do
 
     assert_receive {:fake_sendinblue, %{request_path: request_path}}
 
-    assert request_path == "/v2.0/email"
+    assert request_path == "/v3/smtp/email"
   end
 
   test "deliver/2 sends from, html and text body, subject, and headers" do
@@ -100,11 +100,38 @@ defmodule Bamboo.SendinBlueAdapterTest do
 
     assert_receive {:fake_sendinblue, %{params: params, req_headers: headers}}
 
-    assert Enum.at(params["from"], 0) == email.from |> elem(1)
-    assert Enum.at(params["from"], 1) == email.from |> elem(0)
+    assert params["sender"]["email"] == email.from |> elem(1)
+    assert params["sender"]["name"] == email.from |> elem(0)
     assert params["subject"] == email.subject
     assert params["text"] == email.text_body
     assert params["html"] == email.html_body
+    assert Enum.member?(headers, {"api-key", @config[:api_key]})
+  end
+
+  test "deliver/2 sends template params if set" do
+    template_id = 1
+    template_params = %{"username" => "Peter"}
+    email = new_email(
+      from: {"From", "from@foo.com"},
+      subject: "My Subject",
+      text_body: "TEXT BODY",
+      html_body: "HTML BODY",
+    )
+    |> Email.put_header("Reply-To", {"ReplyTo", "reply@foo.com"})
+    |> Email.put_private("template_id", template_id)
+    |> Email.put_private("template_params", template_params)
+
+    email |> SendinBlueAdapter.deliver(@config)
+
+    assert_receive {:fake_sendinblue, %{params: params, req_headers: headers}}
+
+    assert params["sender"]["email"] == email.from |> elem(1)
+    assert params["sender"]["name"] == email.from |> elem(0)
+    assert params["subject"] == email.subject
+    assert params["text"] == email.text_body
+    assert params["html"] == email.html_body
+    assert params["template_id"] == template_id
+    assert params["params"] == template_params
     assert Enum.member?(headers, {"api-key", @config[:api_key]})
   end
 
@@ -118,9 +145,9 @@ defmodule Bamboo.SendinBlueAdapterTest do
     email |> SendinBlueAdapter.deliver(@config)
 
     assert_receive {:fake_sendinblue, %{params: params}}
-    assert params["to"] == %{"to@bar.com,noname@bar.com" => "ToName,"}
-    assert params["cc"] == %{"cc@bar.com" => "CC"}
-    assert params["bcc"] == %{"bcc@bar.com" => "BCC"}
+    assert params["to"] == [%{"email" => "to@bar.com", "name" => "ToName"}, %{"email" => "noname@bar.com", "name" => nil}]
+    assert params["cc"] == [%{"email" => "cc@bar.com", "name" => "CC"}]
+    assert params["bcc"] == [%{"email" => "bcc@bar.com", "name" => "BCC"}]
   end
 
   defp new_email(attrs \\ []) do

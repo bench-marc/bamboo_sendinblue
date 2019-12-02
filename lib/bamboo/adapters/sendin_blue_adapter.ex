@@ -1,6 +1,6 @@
 defmodule Bamboo.SendinBlueAdapter do
   @moduledoc """
-  Sends email using SendinBlue's JSON API v2.0.
+  Sends email using SendinBlue's JSON API v3.0.
 
   Use this adapter to send emails through SendinBlue's API. Requires that an API
   key is set in the config.
@@ -24,7 +24,7 @@ defmodule Bamboo.SendinBlueAdapter do
   """
 
   @default_base_uri "https://api.sendinblue.com"
-  @send_message_path "/v2.0/email"
+  @send_message_path "/v3/smtp/email"
   @behaviour Bamboo.Adapter
 
   alias Bamboo.Email
@@ -40,7 +40,7 @@ defmodule Bamboo.SendinBlueAdapter do
       filtered_params = params |> Plug.Conn.Query.decode |> Map.put("key", "[FILTERED]")
 
       message = """
-      There was a problem sending the email through the SendinBlue API v2.0.
+      There was a problem sending the email through the SendinBlue API v3.0.
 
       Here is the response:
 
@@ -121,44 +121,60 @@ defmodule Bamboo.SendinBlueAdapter do
     |> put_subject(email)
     |> put_html_body(email)
     |> put_text_body(email)
+    |> maybe_put_template_params(email)
   end
 
-  defp put_from(body, %Email{from: {nil, address}}), do: Map.put(body, :from, [address, ""])
-  defp put_from(body, %Email{from: {name, address}}) do
+  defp maybe_put_template_params(params, %{
+         private: %{"template_id" => template_id, "template_params" => template_params}
+       }) do
+    params
+    |> Map.put(:templateId, template_id)
+    |> Map.put(:params, template_params)
+  end
+
+  defp maybe_put_template_params(params, %{
+         private: %{"template_id" => template_id}
+       }) do
+    params
+    |> Map.put(:templateId, template_id)
+  end
+
+  defp maybe_put_template_params(params, _), do: params
+
+  defp put_from(body, %Email{from: {name, email}}) do
     body
-    |> Map.put(:from, [address, name])
+    |> Map.put(:sender, %{email: email, name: name})
   end
 
   defp put_to(body, %Email{to: to}) do
-    {names, addresses} = Enum.unzip(to)
     body
-    |> put_addresses(:to, %{Enum.join(addresses, ",") => Enum.join(names, ",")})
+    |> put_addresses(:to, Enum.map(to, fn {name, email} -> %{name: name, email: email} end))
   end
 
   defp put_cc(body, %Email{cc: []}), do: body
+  defp put_cc(body, %Email{cc: nil}), do: body
   defp put_cc(body, %Email{cc: cc}) do
-    {names, addresses} = Enum.unzip(cc)
     body
-    |> put_addresses(:cc, %{Enum.join(addresses, ",") => Enum.join(names, ",")})
+    |> put_addresses(:cc, Enum.map(cc, fn {name, email} -> %{name: name, email: email} end))
   end
 
   defp put_bcc(body, %Email{bcc: []}), do: body
+  defp put_bcc(body, %Email{bcc: nil}), do: body
   defp put_bcc(body, %Email{bcc: bcc}) do
-    {names, addresses} = Enum.unzip(bcc)
     body
-    |> put_addresses(:bcc, %{Enum.join(addresses, ",") => Enum.join(names, ",")})
+    |> put_addresses(:bcc, Enum.map(bcc, fn {name, email} -> %{name: name, email: email} end))
   end
 
   defp put_subject(body, %Email{subject: subject}), do: Map.put(body, :subject, subject)
 
   defp put_html_body(body, %Email{html_body: nil}), do: body
-  defp put_html_body(body, %Email{html_body: html_body}), do: Map.put(body, :html, html_body)
+  defp put_html_body(body, %Email{html_body: html_body}), do: Map.put(body, :htmlContent, html_body)
 
   defp put_text_body(body, %Email{text_body: nil}), do: body
-  defp put_text_body(body, %Email{text_body: text_body}), do: Map.put(body, :text, text_body)
+  defp put_text_body(body, %Email{text_body: text_body}), do: Map.put(body, :textContent, text_body)
 
-  defp put_reply_to(body, %Email{headers: %{"reply-to" => reply_to}} = _email) do
-    Map.put(body, :replyto, reply_to)
+  defp put_reply_to(body, %Email{headers: %{"reply-to" => email}} = _email) do
+    Map.put(body, :replyto, %{email: email})
   end
   defp put_reply_to(body, _), do: body
 

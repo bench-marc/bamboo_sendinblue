@@ -34,6 +34,23 @@ If [available in Hex](https://hex.pm/docs/publish), the package can be installed
 
 4. Follow Bamboo [Getting Started Guide](https://github.com/thoughtbot/bamboo#getting-started)
 
+## Usage
+
+```
+email = Email.new_email(
+      from: {"From", "from@foo.com"},
+      subject: "My Subject",
+      text_body: "TEXT BODY",
+      html_body: "HTML BODY",
+    )
+    |> Bamboo.Mailer.normalize_addresses
+    |> Email.put_header("Reply-To", {"ReplyTo", "reply@foo.com"})
+    |> Email.put_private("template_id", template_id)
+    |> Email.put_private("template_params", template_params)
+
+email |> SendinBlueAdapter.deliver(@config)
+```
+
 ## Contributing
 
 Before opening a pull request you can open an issue if you have any question or need some guidance.
