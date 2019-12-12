@@ -141,9 +141,20 @@ defmodule Bamboo.SendinBlueAdapter do
 
   defp maybe_put_template_params(params, _), do: params
 
+  defp put_from(params, %{
+         from: {name, email},
+         private: %{"template_id" => template_id}
+       }) do
+    params
+  end
+
   defp put_from(body, %Email{from: {name, email}}) do
     body
     |> Map.put(:sender, %{email: email, name: name})
+  end
+
+  defp put_from(body, _) do
+    body
   end
 
   defp put_to(body, %Email{to: to}) do
@@ -165,7 +176,14 @@ defmodule Bamboo.SendinBlueAdapter do
     |> put_addresses(:bcc, Enum.map(bcc, fn {name, email} -> %{name: name, email: email} end))
   end
 
-  defp put_subject(body, %Email{subject: subject}), do: Map.put(body, :subject, subject)
+  defp put_subject(body, %{
+         subject: subject,
+         private: %{"template_id" => template_id}
+       }) do
+    body
+  end
+
+  defp put_subject(body, %Email{subject: subject}), do: Map.put(body, :subject, subject)  
 
   defp put_html_body(body, %Email{html_body: nil}), do: body
   defp put_html_body(body, %Email{html_body: html_body}), do: Map.put(body, :htmlContent, html_body)

@@ -103,8 +103,8 @@ defmodule Bamboo.SendinBlueAdapterTest do
     assert params["sender"]["email"] == email.from |> elem(1)
     assert params["sender"]["name"] == email.from |> elem(0)
     assert params["subject"] == email.subject
-    assert params["text"] == email.text_body
-    assert params["html"] == email.html_body
+    assert params["textContent"] == email.text_body
+    assert params["htmlContent"] == email.html_body
     assert Enum.member?(headers, {"api-key", @config[:api_key]})
   end
 
@@ -125,12 +125,12 @@ defmodule Bamboo.SendinBlueAdapterTest do
 
     assert_receive {:fake_sendinblue, %{params: params, req_headers: headers}}
 
-    assert params["sender"]["email"] == email.from |> elem(1)
-    assert params["sender"]["name"] == email.from |> elem(0)
-    assert params["subject"] == email.subject
-    assert params["text"] == email.text_body
-    assert params["html"] == email.html_body
-    assert params["template_id"] == template_id
+    assert params["sender"]["email"] == nil
+    assert params["sender"]["name"] == nil
+    assert params["subject"] == nil
+    assert params["textContent"] == email.text_body
+    assert params["htmlContent"] == email.html_body
+    assert params["templateId"] == template_id
     assert params["params"] == template_params
     assert Enum.member?(headers, {"api-key", @config[:api_key]})
   end
